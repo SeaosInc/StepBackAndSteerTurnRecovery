@@ -107,7 +107,7 @@ void StepBackAndSteerTurnRecovery::initialize (std::string name, tf::TransformLi
 
   // back
   private_nh.param("linear_vel_back", linear_vel_back_, -0.3);
-  private_nh.param("step_back_length", step_back_length_, 0.6);
+  private_nh.param("step_back_length", step_back_length_, 0.3);
   private_nh.param("step_back_timeout", step_back_timeout_, 15.0);
   //-- steer
   private_nh.param("linear_vel_steer", linear_vel_steer_, 0.3);
