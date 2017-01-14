@@ -100,22 +100,22 @@ void StepBackAndSteerTurnRecovery::initialize (std::string name, tf::TransformLi
   private_nh.param("simulation_inc", simulation_inc_, 1/simulation_frequency_);
 
   private_nh.param("only_single_steering", only_single_steering_, true);
-  private_nh.param("trial_times", trial_times_, 5);
-  private_nh.param("obstacle_patience", obstacle_patience_, 0.5);
-  private_nh.param("obstacle_check_frequency", obstacle_check_frequency_, 5.0);
+  private_nh.param("trial_times", trial_times_, 3);
+  private_nh.param("obstacle_patience", obstacle_patience_, 0.2);
+  private_nh.param("obstacle_check_frequency", obstacle_check_frequency_, 10.0);
   private_nh.param("sim_angle_resolution", sim_angle_resolution_, 0.1);
 
   // back
   private_nh.param("linear_vel_back", linear_vel_back_, -0.3);
-  private_nh.param("step_back_length", step_back_length_, 0.3);
+  private_nh.param("step_back_length", step_back_length_, 0.2);			//moves back 20cm from pose
   private_nh.param("step_back_timeout", step_back_timeout_, 15.0);
   //-- steer
-  private_nh.param("linear_vel_steer", linear_vel_steer_, 0.3);
-  private_nh.param("angular_speed_steer", angular_speed_steer_, 0.5);
-  private_nh.param("turn_angle", turn_angle_, 1.0);
+  private_nh.param("linear_vel_steer", linear_vel_steer_, 0.2);
+  private_nh.param("angular_speed_steer", angular_speed_steer_, 0.3);
+  private_nh.param("turn_angle", turn_angle_, 0.5);				//steer forward left/right 50cm from pose
   private_nh.param("steering_timeout", steering_timeout_, 15.0);
   //-- forward
-  private_nh.param("linear_vel_forward", linear_vel_forward_, 0.3);
+  private_nh.param("linear_vel_forward", linear_vel_forward_, 0.5);
   private_nh.param("step_forward_length", step_forward_length_, 0.3);
   private_nh.param("step_forward_timeout", step_forward_timeout_, 15.0);
 
@@ -154,14 +154,14 @@ gm::Pose2D forwardSimulate (const gm::Pose2D& p, const gm::Twist& twist, const d
 {
   gm::Pose2D p2;
   const double linear_vel = twist.linear.x;
-  p2.theta = p.theta + twist.angular.z;//*t;
+  p2.theta = p.theta + twist.angular.z;
   p2.x = p.x + linear_vel * cos(p2.theta)*t;
   p2.y = p.y + linear_vel * sin(p2.theta)*t;
 
   return p2;
 }
 
-/// Return the cost of a pose, modified so that -1 does not equal infinity; instead 1e9 does.
+// Return the cost of a pose, modified so that -1 does not equal infinity; instead 1e9 does.
 double StepBackAndSteerTurnRecovery::normalizedPoseCost (const gm::Pose2D& pose) const
 {
   gm::Point p;
@@ -178,10 +178,11 @@ double StepBackAndSteerTurnRecovery::normalizedPoseCost (const gm::Pose2D& pose)
 }
 
 
-/// Return the maximum d <= duration_ such that starting at the current pose, the cost is nonincreasing for
-/// d seconds if we follow twist
-/// It might also be good to have a threshold such that we're allowed to have lethal cost for at most
-/// the first k of those d seconds, but this is not done
+// Return the maximum d <= duration_ such that starting at the current pose, the cost is nonincreasing for
+// d seconds if we follow twist
+// It might also be good to have a threshold such that we're allowed to have lethal cost for at most
+// the first k of those d seconds, but this is not done
+
 gm::Pose2D StepBackAndSteerTurnRecovery::getPoseToObstacle (const gm::Pose2D& current, const gm::Twist& twist) const
 {
   double cost = 0;
@@ -349,6 +350,7 @@ void StepBackAndSteerTurnRecovery::moveSpacifiedLength (const gm::Twist twist, c
 
         //cmd_vel_pub_.publish(scaleGivenAccelerationLimits(twist, remaining_time));
         cmd_vel_pub_.publish(twist);
+	//ROS_INFO_NAMED ("top", "was here in %s", min_dist, mode_name.c_str());
         if(log_cnt++ % log_frequency == 0)
         {
             ROS_DEBUG_NAMED ("top", "no obstacle around");
@@ -542,11 +544,11 @@ void StepBackAndSteerTurnRecovery::runBehavior ()
                        initialPose.y, initialPose.theta);
       ros::Rate r(controller_frequency_);
 
-      // step back
-      base_frame_twist_.linear.x = linear_vel_back_;
-      ROS_INFO_NAMED ("top", "attempting step back");
-      moveSpacifiedLength(base_frame_twist_, step_back_length_, BACKWARD);
-      ROS_INFO_NAMED ("top", "complete step back");
+      // step back #issue
+//      base_frame_twist_.linear.x = linear_vel_back_;
+//      ROS_INFO_NAMED ("top", "attempting step back");
+//      moveSpacifiedLength(base_frame_twist_, step_back_length_, BACKWARD);
+//      ROS_INFO_NAMED ("top", "complete step back");
 
       double final_diff = getCurrentDiff(initialPose);
       ROS_DEBUG_NAMED ("top", "final_diff = %.2f",final_diff);
@@ -584,6 +586,7 @@ void StepBackAndSteerTurnRecovery::runBehavior ()
       twist.angular.z = z;
       moveSpacifiedLength(twist, turn_angle_, (COSTMAP_SEARCH_MODE)costmap_search_mode[FIRST_TURN]);
       ROS_INFO_NAMED ("top", "complete the 1st turn");
+//      ros::spinOnce();
 
       if(!only_single_steering_) {
           //-- go straight
@@ -600,6 +603,7 @@ void StepBackAndSteerTurnRecovery::runBehavior ()
           twist.angular.z = -z;
           moveSpacifiedLength(twist, turn_angle_, (COSTMAP_SEARCH_MODE)costmap_search_mode[SECOND_TURN]);
           ROS_INFO_NAMED ("top", "complete second turn");
+//	  ros::spinOnce();
       }
 
       // stop
